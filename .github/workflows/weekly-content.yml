@@ -1,0 +1,151 @@
+name: Weekly Content Generation
+
+on:
+  schedule:
+    # Every Friday at 8 PM UTC
+    - cron: '0 20 * * 5'
+  workflow_dispatch: # Allow manual trigger
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  generate_content:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Configure environment
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          OLLAMA_API_URL: ${{ secrets.OLLAMA_API_URL }}
+          HUGGINGFACE_API_KEY: ${{ secrets.HUGGINGFACE_API_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          YOUTUBE_CHANNEL_ID: ${{ secrets.YOUTUBE_CHANNEL_ID }}
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          META_ACCESS_TOKEN: ${{ secrets.META_ACCESS_TOKEN }}
+          TWITTER_BEARER_TOKEN: ${{ secrets.TWITTER_BEARER_TOKEN }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+        run: |
+          cat > .env << EOF
+          ENVIRONMENT=production
+          DEBUG=False
+          SUPABASE_URL=$SUPABASE_URL
+          SUPABASE_KEY=$SUPABASE_KEY
+          OLLAMA_API_URL=$OLLAMA_API_URL
+          HUGGINGFACE_API_KEY=$HUGGINGFACE_API_KEY
+          AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID
+          AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY
+          YOUTUBE_API_KEY=$YOUTUBE_API_KEY
+          YOUTUBE_CHANNEL_ID=$YOUTUBE_CHANNEL_ID
+          TIKTOK_CLIENT_KEY=$TIKTOK_CLIENT_KEY
+          TIKTOK_CLIENT_SECRET=$TIKTOK_CLIENT_SECRET
+          TIKTOK_ACCESS_TOKEN=$TIKTOK_ACCESS_TOKEN
+          META_APP_ID=$META_APP_ID
+          META_APP_SECRET=$META_APP_SECRET
+          META_ACCESS_TOKEN=$META_ACCESS_TOKEN
+          TWITTER_BEARER_TOKEN=$TWITTER_BEARER_TOKEN
+          LINKEDIN_ACCESS_TOKEN=$LINKEDIN_ACCESS_TOKEN
+          USE_MOCK_APIS=false
+          BATCH_SIZE=5
+          EOF
+
+      - name: Run health check
+        run: python main.py health
+
+      - name: Generate content batch
+        run: python main.py cli
+        timeout-minutes: 30
+
+      - name: Upload artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-content
+          path: output/
+          retention-days: 30
+
+      - name: Notify on success
+        if: success()
+        run: |
+          echo "✅ Weekly content generation completed successfully"
+          echo "Generated content details:"
+          cat output/manifest.json 2>/dev/null || echo "No manifest file"
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "❌ Content generation failed"
+          # Could send Slack/Discord notification here
+          exit 1
+
+  deploy_to_cloud:
+    needs: generate_content
+    if: success()
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Railway
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+        run: |
+          # Install Railway CLI
+          npm install -g @railway/cli
+
+          # Deploy
+          railway deploy --service $RAILWAY_SERVICE_ID --no-cache
+        continue-on-error: true
+
+      - name: Health check deployed service
+        env:
+          RAILWAY_API_URL: ${{ secrets.RAILWAY_API_URL }}
+        run: |
+          curl -f $RAILWAY_API_URL/health || echo "Health check failed"
+        continue-on-error: true
+
+  analytics:
+    if: always()
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Collect run metrics
+        run: |
+          echo "Workflow completed with status: ${{ job.status }}"
+          echo "Duration: ${{ job.duration }}"
