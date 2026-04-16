@@ -15,6 +15,7 @@ from typing import List
 from loguru import logger
 from datetime import datetime
 from src.models import ContentNiche, Platform, ContentStatus
+from src.config import settings
 from src.agents.content_generator import (
     ContentStrategyExecutor,
     ScriptGeneratorExecutor,
@@ -60,7 +61,7 @@ class OrchestratorExecutor(Executor):
             
             niche = request_data.get("niche", ContentNiche.MOTIVATIONAL.value)
             count = request_data.get("count", 1)
-            platforms = request_data.get("platforms", [Platform.TIKTOK.value])
+            platforms = request_data.get("platforms", settings.target_platforms_list or [Platform.YOUTUBE_SHORTS.value])
             
             # Send response update
             await ctx.yield_output(

@@ -58,9 +58,9 @@ async def main_cli():
         
         # Example: Generate content for motivational niche
         request = {
-            "niche": "motivational",
-            "count": 1,
-            "platforms": ["tiktok", "instagram_reels"]
+            "niche": settings.DEFAULT_NICHE,
+            "count": settings.GENERATION_COUNT,
+            "platforms": settings.target_platforms_list
         }
         
         logger.info(f"Processing request: {request}")
@@ -118,9 +118,9 @@ async def main_scheduler():
                 workflow = workflow_builder.build()
                 
                 request = {
-                    "niche": "motivational",
-                    "count": settings.BATCH_SIZE,
-                    "platforms": ["tiktok", "instagram_reels", "youtube_shorts"]
+                    "niche": settings.DEFAULT_NICHE,
+                    "count": settings.GENERATION_COUNT,
+                    "platforms": settings.target_platforms_list
                 }
                 
                 result = await workflow.run(request, stream=True)

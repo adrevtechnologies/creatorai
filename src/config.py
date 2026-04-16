@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     
     # Content Strategy
     CONTENT_NICHES: str = "motivational,ai_trends,educational"
+    DEFAULT_NICHE: str = "motivational"
+    TARGET_PLATFORMS: str = "youtube_shorts"
+    GENERATION_COUNT: int = 1
     POSTING_SCHEDULE: str = "09:00,15:00,21:00"
     BATCH_SIZE: int = 5
     VARIANTS_PER_PIECE: int = 3
@@ -133,6 +136,10 @@ class Settings(BaseSettings):
     @property
     def posting_times_list(self) -> List[str]:
         return [t.strip() for t in self.POSTING_SCHEDULE.split(",")]
+
+    @property
+    def target_platforms_list(self) -> List[str]:
+        return [p.strip() for p in self.TARGET_PLATFORMS.split(",") if p.strip()]
     
     def is_production(self) -> bool:
         return self.ENVIRONMENT == "production"
